@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "title": "Azure Blob Storage Writer Configuration",
+  "required": [
+      "account_name",
+      "#account_key",
+      "#sas_token",
+      "container_name",
+      "destination_path",
+      "append_date_to_file"
+  ],
+  "properties": {
+    "account_name": {
+      "description": "Azure Storage Resources Account Name",
+      "type": "string",
+      "title": "Account Name",
+      "minLength": 1,
+      "propertyOrder": 1
+    },
+    "#account_key": {
+      "type": "string",
+      "title": "Account Key",
+      "description": "Account Key will be used over SAS Token if both credentials are provided. Please leave Account Key empty if you are not provided one.",
+      "default": "",
+      "propertyOrder": 2
+    },
+    "#sas_token": {
+      "type": "string",
+      "title": "SAS Token",
+      "description": "Shared Access Signature generated from Azure Storage. Please leave SAS Token empty if you are not provided one.",
+      "default": "",
+      "propertyOrder": 3
+    },
+    "container_name": {
+      "type": "string",
+      "title": "Container Name",
+      "description": "Azure Storage Container Name",
+      "minLength": 1,
+      "propertyOrder": 4
+    },
+    "destination_path": {
+      "type": "string",
+      "title": "Destination Path",
+      "description": "The folder path you want to export the files to. Backslash '/' needs to be included into the configuration. If you want to export into the root folder of the container, please leave this blank. Example: to export into folder [test], enter 'test/'",
+      "propertyOrder": 5
+    },
+    "append_date_to_file": {
+      "type": "boolean",
+      "title": "Append Date to File",
+      "description": "Today's date (YYYY_MM_dd) will be appended into the export file",
+      "propertyOrder": 6,
+      "default": false
+    }
+  }
+}
