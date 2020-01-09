@@ -16,6 +16,17 @@ The purpose of Azure Blob Storage Writer is to export any CSV files into the des
 
 If SAS token is used, the componet will be skipping the container validation process. The reason is SAS token is configured/generated with a targeted blob object, meaning that it has limited access rights to one Blob only.
 
+## Token Permission Requirement
+    Allowed services: 
+        1. Blob
+    Allowed resource types:
+        1. Service
+        2. Container
+        3. Object
+    Allowed Permissions:
+        1. Read
+        2. List
+
 ## Configuration
 
 ### Input Mapping Configurations
