@@ -4,7 +4,6 @@
   "required": [
       "account_name",
       "#account_key",
-      "#sas_token",
       "container_name",
       "destination_path",
       "append_date_to_file"
@@ -23,13 +22,6 @@
       "description": "Account Key will be used over SAS Token if both credentials are provided. Please leave Account Key empty if you are not provided one.",
       "default": "",
       "propertyOrder": 2
-    },
-    "#sas_token": {
-      "type": "string",
-      "title": "SAS Token",
-      "description": "Shared Access Signature generated from Azure Storage. Please leave SAS Token empty if you are not provided one.",
-      "default": "",
-      "propertyOrder": 3
     },
     "container_name": {
       "type": "string",

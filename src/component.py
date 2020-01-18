@@ -67,15 +67,6 @@ class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
         KBCEnvHandler.__init__(self, MANDATORY_PARS)
-        """
-        # override debug from config
-        if self.cfg_params.get('debug'):
-            debug = True
-        else:
-            debug = False
-
-        self.set_default_logger('DEBUG' if debug else 'INFO')
-        """
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
@@ -117,19 +108,16 @@ class Component(KBCEnvHandler):
         params = self.cfg_params  # noqa
         account_name = params.get('account_name')
         account_key = params.get('#account_key')
-        sas_token = params.get('#sas_token')
         container_name = params.get('container_name')
 
         # Credentials Conditions
         if account_name == '' or container_name == '' or len(in_tables) == 0:
             logging.error("Please enter required information...")
             sys.exit(1)
-        if account_key == '' and sas_token == '':
+        if account_key == '':
             logging.error(
                 "Please enter your credentials: Account Key or SAS Token...")
             sys.exit(1)
-        elif sas_token == '':
-            sas_token = None
 
         # Append date parameters into the output file name
         # destination
@@ -145,29 +133,28 @@ class Component(KBCEnvHandler):
             logging.info('Append date to file: Enabled')
             today_raw = dateparser.parse('today')
             today_formatted = today_raw.strftime('%Y_%m_%d')
-            append_value = '_{}'.format(today_formatted)
+            append_value = '-{}'.format(today_formatted)
 
         '''
         AZURE BLOB STORAGE
         '''
         # Create the BlocklobService that is used to call the Blob service for the storage account
         block_blob_service = BlockBlobService(
-            account_name=account_name, sas_token=sas_token, account_key=account_key)
+            account_name=account_name, account_key=account_key)
 
         # List all containers for this account
         # & Determine if the input container is available
-        if not sas_token and account_key != '':
-            container_generator = block_blob_service._list_containers()
-            list_of_containers = []
-            for i in container_generator:
-                list_of_containers.append(i.name)
-            logging.info("Available Containers: {}".format(list_of_containers))
-            if container_name not in list_of_containers:
-                logging.error(
-                    "Entered Container does not exist: {}".format(container_name))
-                logging.error(
-                    "Please validate your input container or create a new container in Blob Storage.")
-                sys.exit(1)
+        container_generator = block_blob_service._list_containers()
+        list_of_containers = []
+        for i in container_generator:
+            list_of_containers.append(i.name)
+        logging.info("Available Containers: {}".format(list_of_containers))
+        if container_name not in list_of_containers:
+            logging.error(
+                "Entered Container does not exist: {}".format(container_name))
+            logging.error(
+                "Please validate your input container or create a new container in Blob Storage.")
+            sys.exit(1)
 
         # Uploading files to Blob Storage
         for table in in_tables:
