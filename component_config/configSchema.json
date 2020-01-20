@@ -18,6 +18,7 @@
     },
     "#account_key": {
       "type": "string",
+      "description": "Azure Storage Resources Account Key",
       "title": "Account Key",
       "format": "password",
       "default": "",
