@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "title": "Azure Blob Storage Writer Configuration",
+  "title": "Parameters",
   "required": [
       "account_name",
       "#account_key",
@@ -19,7 +19,7 @@
     "#account_key": {
       "type": "string",
       "title": "Account Key",
-      "description": "Account Key will be used over SAS Token if both credentials are provided. Please leave Account Key empty if you are not provided one.",
+      "format": "password",
       "default": "",
       "propertyOrder": 2
     },
@@ -39,6 +39,7 @@
     "append_date_to_file": {
       "type": "boolean",
       "title": "Append Date to File",
+      "format": "checkbox",
       "description": "Today's date (YYYY_MM_dd) will be appended into the export file",
       "propertyOrder": 6,
       "default": false

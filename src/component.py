@@ -111,12 +111,18 @@ class Component(KBCEnvHandler):
         container_name = params.get('container_name')
 
         # Credentials Conditions
-        if account_name == '' or container_name == '' or len(in_tables) == 0:
-            logging.error("Please enter required information...")
-            sys.exit(1)
-        if account_key == '':
+        if account_key == '' or account_name == '':
             logging.error(
-                "Please enter your credentials: Account Key or SAS Token...")
+                "Please enter your credentials: Account Name, Account Key...")
+            sys.exit(1)
+        if container_name == '':
+            logging.error("Please enter your Container Name...")
+            sys.exit(1)
+        if len(in_tables) == 0:
+            logging.error(
+                "There are not tables founf in the Input Mapping. " +
+                "Please add tables you would like to export into Azure Blob Storage."
+            )
             sys.exit(1)
 
         # Append date parameters into the output file name

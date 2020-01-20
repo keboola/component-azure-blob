@@ -1,11 +1,3 @@
-# Azure Blob Storage Writer
-
-The purpose of Azure Blob Storage Writer is to export any CSV files into the destinated Blob containers.
-
-## API documentation
-
-[Azure Blob Storage](https://docs.microsoft.com/en-us/python/api/azure-storage-blob/azure.storage.blob?view=azure-python-previous)
-
 ## Limitations
 
 - Each block has a maximum of 100 MB
