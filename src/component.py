@@ -120,7 +120,7 @@ class Component(KBCEnvHandler):
             sys.exit(1)
         if len(in_tables) == 0:
             logging.error(
-                "There are not tables founf in the Input Mapping. " +
+                "There are not tables found in the Input Mapping. " +
                 "Please add tables you would like to export into Azure Blob Storage."
             )
             sys.exit(1)
