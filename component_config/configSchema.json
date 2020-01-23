@@ -34,7 +34,7 @@
     "destination_path": {
       "type": "string",
       "title": "Destination Path",
-      "description": "The folder path you want to export the files to. Backslash '/' needs to be included into the configuration. If you want to export into the root folder of the container, please leave this blank. Example: to export into folder [test], enter 'test/'",
+      "description": "The folder path you want to export the files to. Please refer to component description on how to configure",
       "propertyOrder": 5
     },
     "append_date_to_file": {

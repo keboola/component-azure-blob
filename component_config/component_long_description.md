@@ -40,8 +40,8 @@ In the above configuration, File Name (kbc_export.csv) will be used to export in
     - Azure storage container name
 4. Destination Path
     - The folder path you wish to export the input files to
-    - Backslash '/' represents a folder path and it needs to be included at the end of the folder names.
     - Please leave this blank if you wish to export the files into the root folder of the container
+    - If slash '/' is not included at the end of the path configuration, the component will automatically add the '/' for you. Slash represents every folder/directory the component has to pass through in the blob storage directory.
     - Example: 
         - To export into the [test] folder, enter
           ```

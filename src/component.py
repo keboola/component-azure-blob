@@ -60,7 +60,7 @@ if 'KBC_LOGGER_ADDR' in os.environ and 'KBC_LOGGER_PORT' in os.environ:
     # remove default logging to stdout
     logger.removeHandler(logger.handlers[0])
 
-APP_VERSION = '0.0.1'
+APP_VERSION = '0.0.3'
 
 
 class Component(KBCEnvHandler):
@@ -126,13 +126,12 @@ class Component(KBCEnvHandler):
             sys.exit(1)
 
         # Append date parameters into the output file name
-        # destination
+        # Destination parameter
         path_destination = params.get('destination_path')
         if path_destination != '' and '/' not in path_destination and path_destination[-1] != '/':
-            logging.error(
-                'Please validate [Path Destination]. Backslash [/] is not found.')
-            sys.exit(1)
-        # date
+            # Adding '/' backslash if not found at the end of the path_destination
+            path_destination = '{}/'.format(path_destination)
+        # Date parameter
         append_value = ''  # will be used to append into the output file name
         append_date_to_file = params.get('append_date_to_file')
         if append_date_to_file:
@@ -150,7 +149,14 @@ class Component(KBCEnvHandler):
 
         # List all containers for this account
         # & Determine if the input container is available
-        container_generator = block_blob_service._list_containers()
+        # & Validate if the entered account has the right credentials and privileges
+        try:
+            container_generator = block_blob_service._list_containers()
+        except Exception:
+            logging.error(
+                'Authorization Error. Please validate your input credentials and account privileges.')
+            sys.exit(1)
+
         list_of_containers = []
         for i in container_generator:
             list_of_containers.append(i.name)
