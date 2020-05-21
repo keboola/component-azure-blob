@@ -78,7 +78,7 @@ class Component(KBCEnvHandler):
         logging.info('Loading configuration...')
 
         try:
-            self.validate_config()
+            self.validate_config(MANDATORY_PARS)
             self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         except ValueError as e:
             logging.error(e)
