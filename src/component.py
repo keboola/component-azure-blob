@@ -20,8 +20,7 @@ from azure.storage.blob import BlockBlobService, PublicAccess  # noqa
 
 # configuration variables
 KEY_ACCOUNT_NAME = 'account_name'
-KEY_ACCOUNT_KEY = 'account_key'
-KEY_SAS_TOKEN = 'sas_token'
+KEY_ACCOUNT_KEY = '#account_key'
 KEY_CONTAINER_NAME = 'container_name'
 KEY_DESTINATION_PATH = 'destination_path'
 KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
@@ -29,7 +28,6 @@ KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
 MANDATORY_PARS = [
     KEY_ACCOUNT_NAME,
     KEY_ACCOUNT_KEY,
-    KEY_SAS_TOKEN,
     KEY_CONTAINER_NAME,
     KEY_DESTINATION_PATH,
     KEY_APPEND_DATE_TO_FILE
@@ -67,7 +65,7 @@ if 'KBC_LOGGER_ADDR' in os.environ and 'KBC_LOGGER_PORT' in os.environ:
     # remove default logging to stdout
     logger.removeHandler(logger.handlers[0])
 
-APP_VERSION = '0.0.3'
+APP_VERSION = '0.0.4'
 
 
 class Component(KBCEnvHandler):
@@ -78,11 +76,68 @@ class Component(KBCEnvHandler):
         logging.info('Loading configuration...')
 
         try:
-            self.validate_config(MANDATORY_PARS)
+            self.validate_config()
             self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         except ValueError as e:
             logging.error(e)
             exit(1)
+
+    def validate_config_params(self, params, in_tables):
+        '''
+        Validating if input configuration contain everything needed
+        '''
+
+        # Validate if config is blank
+        if params == {}:
+            logging.error(
+                'Configurations are missing. Please configure your component.')
+            sys.exit(1)
+        elif params[KEY_ACCOUNT_KEY] == '' and params[KEY_ACCOUNT_NAME] == '' and params[KEY_CONTAINER_NAME]:
+            logging.error(
+                'Configurations are missing. Please configure your component.')
+            sys.exit(1)
+
+        # Credentials Conditions
+        if params[KEY_ACCOUNT_KEY] == '' or params[KEY_ACCOUNT_NAME] == '':
+            logging.error(
+                "Please enter your credentials: Account Name, Account Key")
+            sys.exit(1)
+        if params[KEY_CONTAINER_NAME] == '':
+            logging.error("Please enter your Container Name")
+            sys.exit(1)
+        if len(in_tables) == 0:
+            logging.error(
+                "There are not tables found in the Input Mapping. " +
+                "Please add tables you would like to export into Azure Blob Storage."
+            )
+            sys.exit(1)
+
+    def validate_blob_container(self, blob_obj, container_name):
+        '''
+        Validating if input container exists in the Blob Storage
+        '''
+
+        # List all containers for this account
+        # & Determine if the input container is available
+        # & Validate if the entered account has the right credentials and privileges
+        try:
+            container_generator = blob_obj._list_containers()
+        except Exception:
+            logging.error(
+                'Authorization Error. Please validate your credentials.')
+            sys.exit(1)
+
+        list_of_containers = []
+        for i in container_generator:
+            list_of_containers.append(i.name)
+        logging.info("Available Containers: {}".format(list_of_containers))
+        if container_name not in list_of_containers:
+            logging.error(
+                "Container does not exist: {}".format(container_name))
+            logging.error("Please validate your Blob Container.")
+            sys.exit(1)
+
+        return list_of_containers
 
     def get_tables(self, tables, mapping):
         """
@@ -113,24 +168,13 @@ class Component(KBCEnvHandler):
 
         # Loading input configurations
         params = self.cfg_params  # noqa
-        account_name = params.get('account_name')
-        account_key = params.get('#account_key')
-        container_name = params.get('container_name')
+        # Validate configuration parameters
+        self.validate_config_params(params, in_tables)
 
-        # Credentials Conditions
-        if account_key == '' or account_name == '':
-            logging.error(
-                "Please enter your credentials: Account Name, Account Key...")
-            sys.exit(1)
-        if container_name == '':
-            logging.error("Please enter your Container Name...")
-            sys.exit(1)
-        if len(in_tables) == 0:
-            logging.error(
-                "There are not tables found in the Input Mapping. " +
-                "Please add tables you would like to export into Azure Blob Storage."
-            )
-            sys.exit(1)
+        # Get proper list of parameters
+        account_name = params.get(KEY_ACCOUNT_NAME)
+        account_key = params.get(KEY_ACCOUNT_KEY)
+        container_name = params.get(KEY_CONTAINER_NAME)
 
         # Append date parameters into the output file name
         # Destination parameter
@@ -154,26 +198,8 @@ class Component(KBCEnvHandler):
         block_blob_service = BlockBlobService(
             account_name=account_name, account_key=account_key)
 
-        # List all containers for this account
-        # & Determine if the input container is available
-        # & Validate if the entered account has the right credentials and privileges
-        try:
-            container_generator = block_blob_service._list_containers()
-        except Exception:
-            logging.error(
-                'Authorization Error. Please validate your input credentials and account privileges.')
-            sys.exit(1)
-
-        list_of_containers = []
-        for i in container_generator:
-            list_of_containers.append(i.name)
-        logging.info("Available Containers: {}".format(list_of_containers))
-        if container_name not in list_of_containers:
-            logging.error(
-                "Entered Container does not exist: {}".format(container_name))
-            logging.error(
-                "Please validate your input container or create a new container in Blob Storage.")
-            sys.exit(1)
+        # Validate input container name
+        self.validate_blob_container(blob_obj=block_blob_service, container_name=container_name)
 
         # Uploading files to Blob Storage
         for table in in_tables:
