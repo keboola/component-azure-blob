@@ -92,7 +92,7 @@ class Component(KBCEnvHandler):
             logging.error(
                 'Configurations are missing. Please configure your component.')
             sys.exit(1)
-        elif params[KEY_ACCOUNT_KEY] == '' and params[KEY_ACCOUNT_NAME] == '' and params[KEY_CONTAINER_NAME]:
+        elif params[KEY_ACCOUNT_KEY] == '' and params[KEY_ACCOUNT_NAME] == '' and params[KEY_CONTAINER_NAME] == '':
             logging.error(
                 'Configurations are missing. Please configure your component.')
             sys.exit(1)
