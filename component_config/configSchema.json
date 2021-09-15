@@ -18,8 +18,8 @@
     },
     "#account_key": {
       "type": "string",
-      "description": "Azure Storage Resources Account Key",
-      "title": "Account Key",
+      "description": "Azure Storage Resources Account Key or SAS Token",
+      "title": "Account Key / SAS Token",
       "format": "password",
       "default": "",
       "propertyOrder": 2
