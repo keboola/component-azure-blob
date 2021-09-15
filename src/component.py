@@ -3,20 +3,19 @@ Template Component main class.
 
 '''
 
-import logging
-import logging_gelf.handlers
-import logging_gelf.formatters
-import sys
-import os
 import datetime  # noqa
-import dateparser
+import logging
+import os
+import sys
+from pathlib import Path
 
+import dateparser
+import logging_gelf.formatters
+import logging_gelf.handlers
+from azure.storage.blob import ContainerClient
 from kbc.env_handler import KBCEnvHandler
 from kbc.result import KBCTableDef  # noqa
 from kbc.result import ResultWriter  # noqa
-
-from azure.storage.blob import BlockBlobService, PublicAccess  # noqa
-
 
 # configuration variables
 KEY_ACCOUNT_NAME = 'account_name'
@@ -24,6 +23,9 @@ KEY_ACCOUNT_KEY = '#account_key'
 KEY_CONTAINER_NAME = 'container_name'
 KEY_DESTINATION_PATH = 'destination_path'
 KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
+KEY_BLOB_DOMAIN = 'blob_domain'
+
+DEFAULT_BLOB_DOMAIN = 'blob.core.windows.net'
 
 MANDATORY_PARS = [
     KEY_ACCOUNT_NAME,
@@ -54,7 +56,6 @@ for library in disable_libraries:
     logging.getLogger(library).disabled = True
 
 if 'KBC_LOGGER_ADDR' in os.environ and 'KBC_LOGGER_PORT' in os.environ:
-
     logger = logging.getLogger()
     logging_gelf_handler = logging_gelf.handlers.GELFTCPSocketHandler(
         host=os.getenv('KBC_LOGGER_ADDR'), port=int(os.getenv('KBC_LOGGER_PORT')))
@@ -71,7 +72,7 @@ APP_VERSION = '0.0.4'
 class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS)
+        KBCEnvHandler.__init__(self, MANDATORY_PARS, data_path=self._get_data_folder_override_path())
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
@@ -121,23 +122,13 @@ class Component(KBCEnvHandler):
         # & Determine if the input container is available
         # & Validate if the entered account has the right credentials and privileges
         try:
-            container_generator = blob_obj._list_containers()
+            blob_obj.get_account_information()
         except Exception:
             logging.error(
                 'Authorization Error. Please validate your credentials.')
             sys.exit(1)
 
-        list_of_containers = []
-        for i in container_generator:
-            list_of_containers.append(i.name)
-        logging.info("Available Containers: {}".format(list_of_containers))
-        if container_name not in list_of_containers:
-            logging.error(
-                "Container does not exist: {}".format(container_name))
-            logging.error("Please validate your Blob Container.")
-            sys.exit(1)
-
-        return list_of_containers
+        return True
 
     def get_tables(self, tables, mapping):
         """
@@ -164,7 +155,7 @@ class Component(KBCEnvHandler):
         # Loading input mapping
         in_tables = self.configuration.get_input_tables()
         in_table_names = self.get_tables(in_tables, 'input_mapping')
-        logging.info("IN tables mapped: "+str(in_table_names))
+        logging.info("IN tables mapped: " + str(in_table_names))
 
         # Loading input configurations
         params = self.cfg_params  # noqa
@@ -194,9 +185,14 @@ class Component(KBCEnvHandler):
         '''
         AZURE BLOB STORAGE
         '''
+        blob_domain = params.get(KEY_BLOB_DOMAIN, DEFAULT_BLOB_DOMAIN)
+        account_url = f'{account_name}.{blob_domain}'
         # Create the BlocklobService that is used to call the Blob service for the storage account
-        block_blob_service = BlockBlobService(
-            account_name=account_name, account_key=account_key)
+        block_blob_service = ContainerClient(
+            account_url=account_url,
+            container_name=container_name,
+            credential=account_key
+        )
 
         # Validate input container name
         self.validate_blob_container(blob_obj=block_blob_service, container_name=container_name)
@@ -209,11 +205,10 @@ class Component(KBCEnvHandler):
                 append_value)  # custom date value
             logging.info('Uploading [{}]...'.format(table_name))
             try:
-                block_blob_service.create_blob_from_path(
-                    container_name=container_name,
+                block_blob_service.upload_blob(
                     # blob_name=table['destination'],
-                    blob_name=table_name,
-                    file_path=table['full_path']
+                    name=table_name,
+                    data=open(table['full_path'], 'rb')
                 )
             except Exception as e:
                 logging.error('There is an issue with uploading [{}]'.format(
@@ -222,6 +217,30 @@ class Component(KBCEnvHandler):
                 sys.exit(1)
 
         logging.info("Blob Storage Writer finished")
+
+    def _get_default_data_path(self) -> str:
+        """
+        Returns default data_path, by default `../data` is used, relative to working directory.
+        This helps with local development.
+        Returns:
+        """
+        return Path(os.getcwd()).resolve().parent.joinpath('data').as_posix()
+
+    def _get_data_folder_override_path(self, data_path_override: str = None) -> str:
+        """
+        Returns overridden value of the data_folder_path in case the data_path_override variable
+        or `KBC_DATADIR` environment variable is defined. The `data_path_override` variable takes precendence.
+        Returns null if override is not in place.
+        Args:
+            data_path_override:
+        Returns:
+        """
+        data_folder_path = None
+        if data_path_override:
+            data_folder_path = data_path_override
+        elif not os.environ.get('KBC_DATADIR'):
+            data_folder_path = self._get_default_data_path()
+        return data_folder_path
 
 
 """
