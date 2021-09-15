@@ -208,7 +208,8 @@ class Component(KBCEnvHandler):
                 block_blob_service.upload_blob(
                     # blob_name=table['destination'],
                     name=table_name,
-                    data=open(table['full_path'], 'rb')
+                    data=open(table['full_path'], 'rb'),
+                    overwrite=True
                 )
             except Exception as e:
                 logging.error('There is an issue with uploading [{}]'.format(
