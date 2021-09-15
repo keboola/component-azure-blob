@@ -34,12 +34,16 @@ In the above configuration, File Name (kbc_export.csv) will be used to export in
 ### Component Parameters Configurations
 1. Account Name - `Required`
     - Azure storage account name
-2. Account Key - `Required`
-    - Azure storage account access key
+2. Account Key / SAS token  - `Required`
+    - Azure storage account access key or SAS token
     - Account Key can be found:
       ```
       [Your Storage Account Overview] > Settings > Access Keys
       ```
+    - SAS token can be generated from the Azure portal:
+      ```
+      [Your Storage Account Overview] > Your Blob Container > Shared access tokens
+      ```   
 3. Container Name - `Required`
     - Azure storage container name
 4. Destination Path

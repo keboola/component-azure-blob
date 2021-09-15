@@ -5,4 +5,4 @@ freezegun
 pandas
 regex==2019.11.1
 dateparser
-azure-storage-blob==2.1.0
+azure-storage-blob==12.3.1
