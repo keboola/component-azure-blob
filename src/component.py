@@ -10,8 +10,6 @@ import sys
 from pathlib import Path
 
 import dateparser
-import logging_gelf.formatters
-import logging_gelf.handlers
 from azure.storage.blob import ContainerClient
 from kbc.env_handler import KBCEnvHandler
 from kbc.result import KBCTableDef  # noqa
@@ -42,38 +40,11 @@ DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
 DEFAULT_FILE_DESTINATION = "/data/out/files/"
 DEFAULT_FILE_SOURCE = "/data/in/files/"
 
-# Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)-8s : [line:%(lineno)3s] %(message)s',
-    datefmt="%Y-%m-%d %H:%M:%S")
-
-# Disabling list of libraries you want to output in the logger
-disable_libraries = [
-    'azure.storage.common.storageclient'
-]
-for library in disable_libraries:
-    logging.getLogger(library).disabled = True
-
-if 'KBC_LOGGER_ADDR' in os.environ and 'KBC_LOGGER_PORT' in os.environ:
-    logger = logging.getLogger()
-    logging_gelf_handler = logging_gelf.handlers.GELFTCPSocketHandler(
-        host=os.getenv('KBC_LOGGER_ADDR'), port=int(os.getenv('KBC_LOGGER_PORT')))
-    logging_gelf_handler.setFormatter(
-        logging_gelf.formatters.GELFFormatter(null_character=True))
-    logger.addHandler(logging_gelf_handler)
-
-    # remove default logging to stdout
-    logger.removeHandler(logger.handlers[0])
-
-APP_VERSION = '0.0.4'
-
 
 class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
         KBCEnvHandler.__init__(self, MANDATORY_PARS, data_path=self._get_data_folder_override_path())
-        logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
         try:
@@ -82,6 +53,80 @@ class Component(KBCEnvHandler):
         except ValueError as e:
             logging.error(e)
             exit(1)
+
+    def run(self):
+        '''
+        Main execution code
+        '''
+        # Loading input mapping
+        in_tables = self.configuration.get_input_tables()
+        in_table_names = self.get_tables(in_tables, 'input_mapping')
+        logging.info("IN tables mapped: " + str(in_table_names))
+
+        # Loading input configurations
+        params = self.cfg_params  # noqa
+        # Validate configuration parameters
+        self.validate_config_params(params, in_tables)
+
+        # Get proper list of parameters
+        account_name = params.get(KEY_ACCOUNT_NAME)
+        account_key = params.get(KEY_ACCOUNT_KEY)
+        container_name = params.get(KEY_CONTAINER_NAME)
+
+        # Append date parameters into the output file name
+        # Destination parameter
+        path_destination = params.get('destination_path')
+        if path_destination != '' and '/' not in path_destination and path_destination[-1] != '/':
+            # Adding '/' backslash if not found at the end of the path_destination
+            path_destination = '{}/'.format(path_destination)
+        # Date parameter
+        append_value = ''  # will be used to append into the output file name
+        append_date_to_file = params.get('append_date_to_file')
+        if append_date_to_file:
+            logging.info('Append date to file: Enabled')
+            today_raw = dateparser.parse('today')
+            today_formatted = today_raw.strftime('%Y_%m_%d')
+            append_value = '-{}'.format(today_formatted)
+
+        '''
+        AZURE BLOB STORAGE
+        '''
+        blob_domain = params.get(KEY_BLOB_DOMAIN, DEFAULT_BLOB_DOMAIN)
+        account_url = f'{account_name}.{blob_domain}'
+        # Create the BlocklobService that is used to call the Blob service for the storage account
+        logger = logging.getLogger("empty_logger")
+        logger.disabled = True
+        block_blob_service = ContainerClient(
+            account_url=account_url,
+            container_name=container_name,
+            credential=account_key,
+            logger=logger
+        )
+
+        # Validate input container name
+        self.validate_blob_container(blob_obj=block_blob_service, container_name=container_name)
+
+        # Uploading files to Blob Storage
+        for table in in_tables:
+            table_name = '{}{}{}.csv'.format(
+                path_destination,  # folder path
+                table['destination'].split('.csv')[0],  # file name
+                append_value)  # custom date value
+            logging.info('Uploading [{}]...'.format(table_name))
+            try:
+                block_blob_service.upload_blob(
+                    # blob_name=table['destination'],
+                    name=table_name,
+                    data=open(table['full_path'], 'rb'),
+                    overwrite=True
+                )
+            except Exception as e:
+                logging.error('There is an issue with uploading [{}]'.format(
+                    table['destination']))
+                logging.error('Error message: {}'.format(e))
+                sys.exit(1)
+
+        logging.info("Blob Storage Writer finished")
 
     def validate_config_params(self, params, in_tables):
         '''
@@ -147,77 +192,6 @@ class Component(KBCEnvHandler):
             table_list.append(destination)
 
         return table_list
-
-    def run(self):
-        '''
-        Main execution code
-        '''
-        # Loading input mapping
-        in_tables = self.configuration.get_input_tables()
-        in_table_names = self.get_tables(in_tables, 'input_mapping')
-        logging.info("IN tables mapped: " + str(in_table_names))
-
-        # Loading input configurations
-        params = self.cfg_params  # noqa
-        # Validate configuration parameters
-        self.validate_config_params(params, in_tables)
-
-        # Get proper list of parameters
-        account_name = params.get(KEY_ACCOUNT_NAME)
-        account_key = params.get(KEY_ACCOUNT_KEY)
-        container_name = params.get(KEY_CONTAINER_NAME)
-
-        # Append date parameters into the output file name
-        # Destination parameter
-        path_destination = params.get('destination_path')
-        if path_destination != '' and '/' not in path_destination and path_destination[-1] != '/':
-            # Adding '/' backslash if not found at the end of the path_destination
-            path_destination = '{}/'.format(path_destination)
-        # Date parameter
-        append_value = ''  # will be used to append into the output file name
-        append_date_to_file = params.get('append_date_to_file')
-        if append_date_to_file:
-            logging.info('Append date to file: Enabled')
-            today_raw = dateparser.parse('today')
-            today_formatted = today_raw.strftime('%Y_%m_%d')
-            append_value = '-{}'.format(today_formatted)
-
-        '''
-        AZURE BLOB STORAGE
-        '''
-        blob_domain = params.get(KEY_BLOB_DOMAIN, DEFAULT_BLOB_DOMAIN)
-        account_url = f'{account_name}.{blob_domain}'
-        # Create the BlocklobService that is used to call the Blob service for the storage account
-        block_blob_service = ContainerClient(
-            account_url=account_url,
-            container_name=container_name,
-            credential=account_key
-        )
-
-        # Validate input container name
-        self.validate_blob_container(blob_obj=block_blob_service, container_name=container_name)
-
-        # Uploading files to Blob Storage
-        for table in in_tables:
-            table_name = '{}{}{}.csv'.format(
-                path_destination,  # folder path
-                table['destination'].split('.csv')[0],  # file name
-                append_value)  # custom date value
-            logging.info('Uploading [{}]...'.format(table_name))
-            try:
-                block_blob_service.upload_blob(
-                    # blob_name=table['destination'],
-                    name=table_name,
-                    data=open(table['full_path'], 'rb'),
-                    overwrite=True
-                )
-            except Exception as e:
-                logging.error('There is an issue with uploading [{}]'.format(
-                    table['destination']))
-                logging.error('Error message: {}'.format(e))
-                sys.exit(1)
-
-        logging.info("Blob Storage Writer finished")
 
     def _get_default_data_path(self) -> str:
         """
