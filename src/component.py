@@ -14,10 +14,17 @@ from azure.storage.blob import ContainerClient
 from kbc.env_handler import KBCEnvHandler
 from kbc.result import KBCTableDef  # noqa
 from kbc.result import ResultWriter  # noqa
+from kbcstorage.workspaces import Workspaces
 
 # configuration variables
+KEY_AUTH_TYPE = "auth_type"
+
 KEY_ACCOUNT_NAME = 'account_name'
 KEY_ACCOUNT_KEY = '#account_key'
+
+KEY_WORKSPACE_ID = "workspace_id"
+KEY_STORAGE_TOKEN = "#storage_token"
+
 KEY_CONTAINER_NAME = 'container_name'
 KEY_DESTINATION_PATH = 'destination_path'
 KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
@@ -40,6 +47,13 @@ DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
 DEFAULT_FILE_DESTINATION = "/data/out/files/"
 DEFAULT_FILE_SOURCE = "/data/in/files/"
 
+WORKSPACE_AUTH_TYPE = "Workspace Credentials"
+AZURE_AUTH_TYPE = "Azure Credentials"
+
+
+class UserException(Exception):
+    pass
+
 
 class Component(KBCEnvHandler):
 
@@ -61,7 +75,7 @@ class Component(KBCEnvHandler):
         # Loading input mapping
         in_tables = self.configuration.get_input_tables()
         in_table_names = self.get_tables(in_tables, 'input_mapping')
-        logging.info("IN tables mapped: " + str(in_table_names))
+        logging.info(f"IN tables mapped: {str(in_table_names)}")
 
         # Loading input configurations
         params = self.cfg_params  # noqa
@@ -78,15 +92,14 @@ class Component(KBCEnvHandler):
         path_destination = params.get('destination_path')
         if path_destination != '' and '/' not in path_destination and path_destination[-1] != '/':
             # Adding '/' backslash if not found at the end of the path_destination
-            path_destination = '{}/'.format(path_destination)
+            path_destination = f'{path_destination}/'
         # Date parameter
         append_value = ''  # will be used to append into the output file name
-        append_date_to_file = params.get('append_date_to_file')
-        if append_date_to_file:
+        if append_date_to_file := params.get('append_date_to_file'):
             logging.info('Append date to file: Enabled')
             today_raw = dateparser.parse('today')
             today_formatted = today_raw.strftime('%Y_%m_%d')
-            append_value = '-{}'.format(today_formatted)
+            append_value = f'-{today_formatted}'
 
         '''
         AZURE BLOB STORAGE
@@ -96,6 +109,13 @@ class Component(KBCEnvHandler):
         # Create the BlocklobService that is used to call the Blob service for the storage account
         logger = logging.getLogger("empty_logger")
         logger.disabled = True
+
+        if params.get(KEY_AUTH_TYPE, AZURE_AUTH_TYPE) == WORKSPACE_AUTH_TYPE:
+            workspace_token = params.get(KEY_STORAGE_TOKEN)
+            workspace_id = params.get(KEY_WORKSPACE_ID)
+            workspace_client = Workspaces(f'https://{os.environ.get("KBC_STACKID")}', workspace_token)
+            account_key = self._refresh_abs_container_token(workspace_client, workspace_id)
+
         block_blob_service = ContainerClient(
             account_url=account_url,
             container_name=container_name,
@@ -108,11 +128,9 @@ class Component(KBCEnvHandler):
 
         # Uploading files to Blob Storage
         for table in in_tables:
-            table_name = '{}{}{}.csv'.format(
-                path_destination,  # folder path
-                table['destination'].split('.csv')[0],  # file name
-                append_value)  # custom date value
-            logging.info('Uploading [{}]...'.format(table_name))
+            table_name = f"{path_destination}{table['destination'].split('.csv')[0]}{append_value}.csv"
+
+            logging.info(f'Uploading [{table_name}]...')
             try:
                 block_blob_service.upload_blob(
                     # blob_name=table['destination'],
@@ -121,42 +139,35 @@ class Component(KBCEnvHandler):
                     overwrite=True
                 )
             except Exception as e:
-                logging.error('There is an issue with uploading [{}]'.format(
-                    table['destination']))
-                logging.error('Error message: {}'.format(e))
+                logging.error(f"There is an issue with uploading [{table['destination']}]")
+                logging.error(f'Error message: {e}')
                 sys.exit(1)
-
         logging.info("Blob Storage Writer finished")
 
-    def validate_config_params(self, params, in_tables):
-        '''
+    @staticmethod
+    def validate_config_params(params, in_tables):
+        """
         Validating if input configuration contain everything needed
-        '''
+        """
 
         # Validate if config is blank
         if params == {}:
-            logging.error(
-                'Configurations are missing. Please configure your component.')
-            sys.exit(1)
-        elif params[KEY_ACCOUNT_KEY] == '' and params[KEY_ACCOUNT_NAME] == '' and params[KEY_CONTAINER_NAME] == '':
-            logging.error(
-                'Configurations are missing. Please configure your component.')
-            sys.exit(1)
+            raise UserException('Configurations are missing. Please configure your component.')
 
-        # Credentials Conditions
-        if params[KEY_ACCOUNT_KEY] == '' or params[KEY_ACCOUNT_NAME] == '':
-            logging.error(
-                "Please enter your credentials: Account Name, Account Key")
-            sys.exit(1)
-        if params[KEY_CONTAINER_NAME] == '':
-            logging.error("Please enter your Container Name")
-            sys.exit(1)
+        # Validating config parameters
+        if not params.get(KEY_ACCOUNT_NAME):
+            raise UserException("Credientials missing: Account Name")
+
+        if params.get(KEY_AUTH_TYPE, AZURE_AUTH_TYPE) == AZURE_AUTH_TYPE and not params.get(KEY_ACCOUNT_KEY):
+            raise UserException("Credientials missing: Access Key.")
+
+        if not params.get(KEY_CONTAINER_NAME):
+            raise UserException("Blob Container name is missing, check your configuration.")
         if len(in_tables) == 0:
-            logging.error(
+            raise UserException(
                 "There are not tables found in the Input Mapping. " +
                 "Please add tables you would like to export into Azure Blob Storage."
             )
-            sys.exit(1)
 
     def validate_blob_container(self, blob_obj, container_name):
         '''
@@ -189,6 +200,8 @@ class Component(KBCEnvHandler):
                 destination = table["destination"]
             elif mapping == "output_mapping":
                 destination = table["source"]
+            else:
+                raise UserException("Mapping set incorrectly")
             table_list.append(destination)
 
         return table_list
@@ -217,14 +230,24 @@ class Component(KBCEnvHandler):
             data_folder_path = self._get_default_data_path()
         return data_folder_path
 
+    @staticmethod
+    def _refresh_abs_container_token(workspace_client: Workspaces, workspace_id: str) -> str:
+        ps = workspace_client.reset_password(workspace_id)
+        return ps['connectionString'].split('SharedAccessSignature=')[1]
+
 
 """
         Main entrypoint
 """
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        debug = sys.argv[1]
-    else:
-        debug = True
-    comp = Component(debug)
-    comp.run()
+    debug = sys.argv[1] if len(sys.argv) > 1 else True
+    try:
+        comp = Component(debug)
+        comp.run()
+    except UserException as exc:
+        logging.exception(exc)
+        exit(1)
+    except Exception as exc:
+        logging.exception(exc)
+        exit(2)
