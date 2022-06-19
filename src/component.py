@@ -95,7 +95,7 @@ class Component(KBCEnvHandler):
             path_destination = f'{path_destination}/'
         # Date parameter
         append_value = ''  # will be used to append into the output file name
-        if append_date_to_file := params.get('append_date_to_file'):
+        if params.get('append_date_to_file'):
             logging.info('Append date to file: Enabled')
             today_raw = dateparser.parse('today')
             today_formatted = today_raw.strftime('%Y_%m_%d')
