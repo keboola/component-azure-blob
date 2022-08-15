@@ -1,20 +1,12 @@
-'''
-Template Component main class.
-
-'''
-
 import datetime  # noqa
 import logging
 import os
 import sys
-from pathlib import Path
 
 import dateparser
 from azure.storage.blob import ContainerClient
-from kbc.env_handler import KBCEnvHandler
-from kbc.result import KBCTableDef  # noqa
-from kbc.result import ResultWriter  # noqa
-from kbcstorage.workspaces import Workspaces
+from keboola.component.base import ComponentBase
+from keboola.component.exceptions import UserException
 
 # configuration variables
 KEY_AUTH_TYPE = "auth_type"
@@ -51,36 +43,23 @@ WORKSPACE_AUTH_TYPE = "Workspace Credentials"
 AZURE_AUTH_TYPE = "Azure Credentials"
 
 
-class UserException(Exception):
-    pass
+class Component(ComponentBase):
 
-
-class Component(KBCEnvHandler):
-
-    def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS, data_path=self._get_data_folder_override_path())
-        logging.info('Loading configuration...')
-
-        try:
-            self.validate_config()
-            self.validate_image_parameters(MANDATORY_IMAGE_PARS)
-        except ValueError as e:
-            logging.error(e)
-            exit(1)
+    def __init__(self):
+        super().__init__()
 
     def run(self):
-        '''
+        """
         Main execution code
-        '''
-        # Loading input mapping
-        in_tables = self.configuration.get_input_tables()
-        in_table_names = self.get_tables(in_tables, 'input_mapping')
-        logging.info(f"IN tables mapped: {str(in_table_names)}")
-
+        """
+        self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         # Loading input configurations
-        params = self.cfg_params  # noqa
-        # Validate configuration parameters
-        self.validate_config_params(params, in_tables)
+        params = self.configuration.parameters
+
+        # Loading input mapping
+        in_tables = self.get_input_tables_definitions()
+        in_table_names = [x.name for x in in_tables]
+        logging.info("IN tables mapped: " + str(in_table_names))
 
         # Get proper list of parameters
         account_name = params.get(KEY_ACCOUNT_NAME)
@@ -135,13 +114,14 @@ class Component(KBCEnvHandler):
                 block_blob_service.upload_blob(
                     # blob_name=table['destination'],
                     name=table_name,
-                    data=open(table['full_path'], 'rb'),
+                    data=open(table.full_path, 'rb'),
                     overwrite=True
                 )
             except Exception as e:
                 logging.error(f"There is an issue with uploading [{table['destination']}]")
                 logging.error(f'Error message: {e}')
                 sys.exit(1)
+
         logging.info("Blob Storage Writer finished")
 
     @staticmethod
@@ -170,9 +150,9 @@ class Component(KBCEnvHandler):
             )
 
     def validate_blob_container(self, blob_obj, container_name):
-        '''
+        """
         Validating if input container exists in the Blob Storage
-        '''
+        """
 
         # List all containers for this account
         # & Determine if the input container is available
@@ -206,45 +186,15 @@ class Component(KBCEnvHandler):
 
         return table_list
 
-    def _get_default_data_path(self) -> str:
-        """
-        Returns default data_path, by default `../data` is used, relative to working directory.
-        This helps with local development.
-        Returns:
-        """
-        return Path(os.getcwd()).resolve().parent.joinpath('data').as_posix()
-
-    def _get_data_folder_override_path(self, data_path_override: str = None) -> str:
-        """
-        Returns overridden value of the data_folder_path in case the data_path_override variable
-        or `KBC_DATADIR` environment variable is defined. The `data_path_override` variable takes precendence.
-        Returns null if override is not in place.
-        Args:
-            data_path_override:
-        Returns:
-        """
-        data_folder_path = None
-        if data_path_override:
-            data_folder_path = data_path_override
-        elif not os.environ.get('KBC_DATADIR'):
-            data_folder_path = self._get_default_data_path()
-        return data_folder_path
-
-    @staticmethod
-    def _refresh_abs_container_token(workspace_client: Workspaces, workspace_id: str) -> str:
-        ps = workspace_client.reset_password(workspace_id)
-        return ps['connectionString'].split('SharedAccessSignature=')[1]
-
 
 """
         Main entrypoint
 """
-
 if __name__ == "__main__":
-    debug = sys.argv[1] if len(sys.argv) > 1 else True
     try:
-        comp = Component(debug)
-        comp.run()
+        comp = Component()
+        # this triggers the run method by default and is controlled by the configuration.action parameter
+        comp.execute_action()
     except UserException as exc:
         logging.exception(exc)
         exit(1)

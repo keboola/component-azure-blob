@@ -1,8 +1,6 @@
-https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.2.0.zip#egg=kbc
-logging_gelf==0.0.18
+keboola.component
 mock
 freezegun
-pandas
 regex==2019.11.1
 dateparser
 azure-storage-blob==12.3.1
