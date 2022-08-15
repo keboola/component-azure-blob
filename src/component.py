@@ -52,6 +52,7 @@ class Component(ComponentBase):
         """
         Main execution code
         """
+        logging.info("Initializing component.")
         self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         # Loading input configurations
         params = self.configuration.parameters
