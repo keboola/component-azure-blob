@@ -30,12 +30,6 @@ MANDATORY_PARS = [
 ]
 MANDATORY_IMAGE_PARS = []
 
-# Default Table Output Destination
-DEFAULT_TABLE_SOURCE = "/data/in/tables/"
-DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
-DEFAULT_FILE_DESTINATION = "/data/out/files/"
-DEFAULT_FILE_SOURCE = "/data/in/files/"
-
 
 class Component(ComponentBase):
 
@@ -48,10 +42,8 @@ class Component(ComponentBase):
         """
         logging.info("Initializing component.")
         self.validate_configuration_parameters(MANDATORY_PARS)
-        # Loading input configurations
         params = self.configuration.parameters
 
-        # Loading input mapping
         in_tables = self.get_input_tables_definitions()
 
         # Get proper list of parameters
