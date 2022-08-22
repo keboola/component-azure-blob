@@ -106,7 +106,8 @@ class Component(ComponentBase):
 
         logging.info("Blob Storage Writer finished")
 
-    def validate_blob_container(self, blob_obj: ContainerClient) -> None:
+    @staticmethod
+    def validate_blob_container(blob_obj: ContainerClient) -> None:
         """
         Validating if input container exists in the Blob Storage
         """
