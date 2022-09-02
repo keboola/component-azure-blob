@@ -5,11 +5,13 @@ Template Component main class.
 import datetime  # noqa
 import logging
 import os
+from typing import List
 
 import dateparser
 from azure.storage.blob import ContainerClient
 from kbcstorage.workspaces import Workspaces
 from keboola.component.base import ComponentBase
+from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 
 # configuration variables
@@ -96,11 +98,15 @@ class Component(ComponentBase):
             workspace_client = Workspaces(f'https://{os.environ.get("KBC_STACKID")}', workspace_token)
             account_key = self._refresh_abs_container_token(workspace_client, workspace_id)
 
+        self._get_max_block_size(in_tables)
+
         block_blob_service = ContainerClient(
             account_url=account_url,
             container_name=container_name,
             credential=account_key,
-            logger=logger
+            logger=logger,
+            # adjust block size for extremely large files
+            max_block_size=self._get_max_block_size(in_tables)
         )
 
         # Validate input container name
@@ -125,6 +131,15 @@ class Component(ComponentBase):
                     table.name)) from e
 
         logging.info("Blob Storage Writer finished")
+
+    def _get_max_block_size(self, tables: List[TableDefinition]):
+        max_size = 0
+        for t in tables:
+            size = os.path.getsize(t.full_path)
+            if size > max_size:
+                max_size = size
+
+        return 4 * 1024 * 1024 if max_size < 1073741824 else 100 * 1024 * 1024
 
     @staticmethod
     def validate_blob_container(blob_obj: ContainerClient) -> None:
