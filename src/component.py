@@ -4,16 +4,23 @@ Template Component main class.
 """
 import datetime  # noqa
 import logging
-import sys
+import os
+
 import dateparser
 from azure.storage.blob import ContainerClient
-
+from kbcstorage.workspaces import Workspaces
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException
 
 # configuration variables
+KEY_AUTH_TYPE = "auth_type"
+
 KEY_ACCOUNT_NAME = 'account_name'
 KEY_ACCOUNT_KEY = '#account_key'
+
+KEY_WORKSPACE_ID = "workspace_id"
+KEY_STORAGE_TOKEN = "#storage_token"
+
 KEY_CONTAINER_NAME = 'container_name'
 KEY_DESTINATION_PATH = 'destination_path'
 KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
@@ -28,7 +35,15 @@ MANDATORY_PARS = [
     KEY_DESTINATION_PATH,
     KEY_APPEND_DATE_TO_FILE
 ]
-MANDATORY_IMAGE_PARS = []
+
+# Default Table Output Destination
+DEFAULT_TABLE_SOURCE = "/data/in/tables/"
+DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
+DEFAULT_FILE_DESTINATION = "/data/out/files/"
+DEFAULT_FILE_SOURCE = "/data/in/files/"
+
+WORKSPACE_AUTH_TYPE = "Workspace Credentials"
+AZURE_AUTH_TYPE = "Azure Credentials"
 
 
 class Component(ComponentBase):
@@ -74,6 +89,13 @@ class Component(ComponentBase):
         # Create the BlocklobService that is used to call the Blob service for the storage account
         logger = logging.getLogger("empty_logger")
         logger.disabled = True
+
+        if params.get(KEY_AUTH_TYPE, AZURE_AUTH_TYPE) == WORKSPACE_AUTH_TYPE:
+            workspace_token = params.get(KEY_STORAGE_TOKEN)
+            workspace_id = params.get(KEY_WORKSPACE_ID)
+            workspace_client = Workspaces(f'https://{os.environ.get("KBC_STACKID")}', workspace_token)
+            account_key = self._refresh_abs_container_token(workspace_client, workspace_id)
+
         block_blob_service = ContainerClient(
             account_url=account_url,
             container_name=container_name,
@@ -99,10 +121,8 @@ class Component(ComponentBase):
                     overwrite=True
                 )
             except Exception as e:
-                logging.error('There is an issue with uploading [{}]'.format(
-                    table['destination']))
-                logging.error('Error message: {}'.format(e))
-                sys.exit(1)
+                raise UserException('There is an issue with uploading [{}]'.format(
+                    table.name)) from e
 
         logging.info("Blob Storage Writer finished")
 
@@ -118,9 +138,12 @@ class Component(ComponentBase):
         try:
             blob_obj.get_account_information()
         except Exception:
-            logging.error(
-                'Authorization Error. Please validate your credentials.')
-            sys.exit(1)
+            raise UserException('Authorization Error. Please validate your credentials.')
+
+    @staticmethod
+    def _refresh_abs_container_token(workspace_client: Workspaces, workspace_id: str) -> str:
+        ps = workspace_client.reset_password(workspace_id)
+        return ps['connectionString'].split('SharedAccessSignature=')[1]
 
 
 """

@@ -1,7 +1,6 @@
-keboola.component
+keboola.component==1.3.7
 mock
 freezegun
 regex==2019.11.1
-dateparser
 azure-storage-blob==12.3.1
 git+https://github.com/davidesner/sapi-python-client.git#egg=kbcstorage
