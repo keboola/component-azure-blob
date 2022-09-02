@@ -9,3 +9,4 @@ example/.pydevproject
 # kbc datafolder
 data/
 tmp/
+venv/

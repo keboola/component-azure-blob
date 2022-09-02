@@ -40,7 +40,7 @@ In the above configuration, File Name (kbc_export.csv) will be used to export in
       ```
       [Your Storage Account Overview] > Settings > Access Keys
       ```
-    - SAS token can be generated from the Azure portal:
+    - SAS token can be generated from the Azure portal. More info [here](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview):
       ```
       [Your Storage Account Overview] > Your Blob Container > Shared access tokens
       ```   
