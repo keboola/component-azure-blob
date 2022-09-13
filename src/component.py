@@ -127,8 +127,7 @@ class Component(ComponentBase):
                     overwrite=True
                 )
             except Exception as e:
-                raise UserException('There is an issue with uploading [{}]'.format(
-                    table.name)) from e
+                raise UserException(f'There is an issue with uploading [{table.name}]. {e}') from e
 
         logging.info("Blob Storage Writer finished")
 
