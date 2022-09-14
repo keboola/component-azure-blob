@@ -15,6 +15,7 @@ from keboola.component.dao import TableDefinition
 from keboola.component.exceptions import UserException
 
 # configuration variables
+DEFAULT_BLOCK_SIZE = 4 * 1024 * 1024
 KEY_AUTH_TYPE = "auth_type"
 
 KEY_ACCOUNT_NAME = 'account_name'
@@ -121,6 +122,17 @@ class Component(ComponentBase):
                 append_value)  # custom date value
             logging.info('Uploading [{}]...'.format(table_name))
             try:
+                # write zero byte blob to reset the uncommited blocks
+                # https://techcommunity.microsoft.com/t5/azure-paas-blog/troubleshooting-invalidblock-the-specified-block-list-is-invalid/ba-p/1870350 # noqa
+                if max_block_size > DEFAULT_BLOCK_SIZE:
+                    block_blob_service.upload_blob(
+                        # blob_name=table['destination'],
+                        name=table_name,
+                        data=[],
+                        overwrite=True
+                    )
+
+                # upload the blob itself
                 block_blob_service.upload_blob(
                     # blob_name=table['destination'],
                     name=table_name,
@@ -139,7 +151,7 @@ class Component(ComponentBase):
             if size > max_size:
                 max_size = size
         logging.debug(f'Max file size to upload is: {max_size}')
-        return 4 * 1024 * 1024 if max_size < 1073741824 else 100 * 1024 * 1024
+        return DEFAULT_BLOCK_SIZE if max_size < 1073741824 else 100 * 1024 * 1024
 
     @staticmethod
     def validate_blob_container(blob_obj: ContainerClient) -> None:
