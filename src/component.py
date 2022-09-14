@@ -98,7 +98,8 @@ class Component(ComponentBase):
             workspace_client = Workspaces(f'https://{os.environ.get("KBC_STACKID")}', workspace_token)
             account_key = self._refresh_abs_container_token(workspace_client, workspace_id)
 
-        self._get_max_block_size(in_tables)
+        max_block_size = self._get_max_block_size(in_tables)
+        logging.debug(f"Using block size {max_block_size}")
 
         block_blob_service = ContainerClient(
             account_url=account_url,
@@ -106,7 +107,7 @@ class Component(ComponentBase):
             credential=account_key,
             logger=logger,
             # adjust block size for extremely large files
-            max_block_size=self._get_max_block_size(in_tables)
+            max_block_size=max_block_size
         )
 
         # Validate input container name
@@ -137,7 +138,7 @@ class Component(ComponentBase):
             size = os.path.getsize(t.full_path)
             if size > max_size:
                 max_size = size
-
+        logging.debug(f'Max file size to upload is: {max_size}')
         return 4 * 1024 * 1024 if max_size < 1073741824 else 100 * 1024 * 1024
 
     @staticmethod
