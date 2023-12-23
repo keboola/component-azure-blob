@@ -6,9 +6,10 @@ import datetime  # noqa
 import logging
 import os
 from typing import List
+import uuid
 
 import dateparser
-from azure.storage.blob import ContainerClient
+from azure.storage.blob import ContainerClient, BlobBlock
 from kbcstorage.workspaces import Workspaces
 from keboola.component.base import ComponentBase
 from keboola.component.dao import TableDefinition
@@ -26,6 +27,8 @@ KEY_STORAGE_TOKEN = "#storage_token"
 KEY_CONTAINER_NAME = 'container_name'
 KEY_DESTINATION_PATH = 'destination_path'
 KEY_APPEND_DATE_TO_FILE = 'append_date_to_file'
+KEY_STAGE_AND_COMMIT = 'stage_and_commit'
+KEY_BLOCK_SIZE = 'block_size'
 KEY_BLOB_DOMAIN = 'blob_domain'
 
 DEFAULT_BLOB_DOMAIN = 'blob.core.windows.net'
@@ -35,14 +38,17 @@ MANDATORY_PARS = [
      KEY_ACCOUNT_KEY],
     KEY_CONTAINER_NAME,
     KEY_DESTINATION_PATH,
-    KEY_APPEND_DATE_TO_FILE
+    KEY_APPEND_DATE_TO_FILE,
+    KEY_STAGE_AND_COMMIT
 ]
 
 # Default Table Output Destination
-DEFAULT_TABLE_SOURCE = "/data/in/tables/"
+DEFAULT_TABLE_SOURCE = "/data/tables/tables/"
 DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
 DEFAULT_FILE_DESTINATION = "/data/out/files/"
-DEFAULT_FILE_SOURCE = "/data/in/files/"
+DEFAULT_FILE_SOURCE = "/data/tables/files/"
+
+DEFAULT_BLOCK_SIZE = 4194304
 
 WORKSPACE_AUTH_TYPE = "Workspace Credentials"
 AZURE_AUTH_TYPE = "Azure Credentials"
@@ -100,7 +106,7 @@ class Component(ComponentBase):
 
         self._get_max_block_size(in_tables)
 
-        block_blob_service = ContainerClient(
+        self.container_client = ContainerClient(
             account_url=account_url,
             container_name=container_name,
             credential=account_key,
@@ -109,29 +115,28 @@ class Component(ComponentBase):
             max_block_size=self._get_max_block_size(in_tables)
         )
 
-        # Validate input container name
-        self.validate_blob_container(block_blob_service)
+        self.validate_container_client(self.container_client)
+
+        upload_method = self.stage_and_commit_upload if params[KEY_STAGE_AND_COMMIT] else self.standard_upload
 
         # Uploading files to Blob Storage
         for table in in_tables:
-            table_name = '{}{}{}.csv'.format(
+            destination_table_name = '{}{}{}.csv'.format(
                 path_destination,  # folder path
                 table.name.split('.csv')[0],  # file name
                 append_value)  # custom date value
-            logging.info('Uploading [{}]...'.format(table_name))
+
+            logging.info('Uploading [{}]...'.format(destination_table_name))
+
             try:
-                block_blob_service.upload_blob(
-                    # blob_name=table['destination'],
-                    name=table_name,
-                    data=open(table.full_path, 'rb'),
-                    overwrite=True
-                )
+                upload_method(table, destination_table_name, block_size=params.get(KEY_BLOCK_SIZE))
             except Exception as e:
                 raise UserException(f'There is an issue with uploading [{table.name}]. {e}') from e
 
         logging.info("Blob Storage Writer finished")
 
-    def _get_max_block_size(self, tables: List[TableDefinition]):
+    @staticmethod
+    def _get_max_block_size(tables: List[TableDefinition]):
         max_size = 0
         for t in tables:
             size = os.path.getsize(t.full_path)
@@ -141,9 +146,9 @@ class Component(ComponentBase):
         return 4 * 1024 * 1024 if max_size < 1073741824 else 100 * 1024 * 1024
 
     @staticmethod
-    def validate_blob_container(blob_obj: ContainerClient) -> None:
+    def validate_container_client(blob_obj: ContainerClient) -> None:
         """
-        Validating if input container exists in the Blob Storage
+        Validating if input container exists tables the Blob Storage
         """
 
         # List all containers for this account
@@ -158,6 +163,35 @@ class Component(ComponentBase):
     def _refresh_abs_container_token(workspace_client: Workspaces, workspace_id: str) -> str:
         ps = workspace_client.reset_password(workspace_id)
         return ps['connectionString'].split('SharedAccessSignature=')[1]
+
+    def standard_upload(self, table: TableDefinition, destination_table_name: str, **kwargs):
+        self.container_client.upload_blob(
+            name=destination_table_name,
+            data=open(table.full_path, 'rb'),
+            overwrite=True
+        )
+
+    def stage_and_commit_upload(self, table: TableDefinition, destination_table_name: str,
+                                block_size: int = DEFAULT_BLOCK_SIZE):
+        blob_client = self.container_client.get_blob_client(destination_table_name)
+
+        with open(file=table.full_path, mode="rb") as file_stream:
+            block_id_list = []
+            i = 0
+            while True:
+                buffer = file_stream.read(block_size)
+                if not buffer:
+                    break
+
+                block_id = uuid.uuid4().hex
+                block_id_list.append(BlobBlock(block_id=block_id))
+
+                i += 1
+                logging.info(f'Staging block {i}')
+                blob_client.stage_block(block_id=block_id, data=buffer, length=len(buffer))
+
+            logging.info(f'Commiting {i} blocks for [{destination_table_name}]')
+            blob_client.commit_block_list(block_id_list)
 
 
 """

@@ -5,7 +5,8 @@
     "account_name",
     "container_name",
     "destination_path",
-    "append_date_to_file"
+    "append_date_to_file",
+    "stage_and_commit"
   ],
   "properties": {
     "auth_type": {
@@ -81,6 +82,26 @@
       "description": "Today's date (YYYY_MM_dd) will be appended into the export file",
       "propertyOrder": 60,
       "default": false
+    },
+    "stage_and_commit": {
+      "type": "boolean",
+      "title": "Upload via blocks staging and subsequent commit",
+      "format": "checkbox",
+      "description": "Staging nad commiting ensures the whole file will be uploaded before visible in azure",
+      "propertyOrder": 70,
+      "default": false
+    },
+    "block_size": {
+      "type": "integer",
+      "default": 4194304,
+      "title": "Block Size",
+      "description": "Block size for staging (default 4 * 1024 * 1024 B ~ 4 MB)",
+      "propertyOrder": 80,
+      "options": {
+        "dependencies": {
+          "stage_and_commit": true
+        }
+      }
     }
   }
 }
