@@ -43,10 +43,10 @@ MANDATORY_PARS = [
 ]
 
 # Default Table Output Destination
-DEFAULT_TABLE_SOURCE = "/data/tables/tables/"
+DEFAULT_TABLE_SOURCE = "/data/in/tables/"
 DEFAULT_TABLE_DESTINATION = "/data/out/tables/"
 DEFAULT_FILE_DESTINATION = "/data/out/files/"
-DEFAULT_FILE_SOURCE = "/data/tables/files/"
+DEFAULT_FILE_SOURCE = "/data/in/files/"
 
 DEFAULT_BLOCK_SIZE = 4194304
 
@@ -148,7 +148,7 @@ class Component(ComponentBase):
     @staticmethod
     def validate_container_client(blob_obj: ContainerClient) -> None:
         """
-        Validating if input container exists tables the Blob Storage
+        Validating if input container exists in the Blob Storage
         """
 
         # List all containers for this account
