@@ -5,7 +5,7 @@ Template Component main class.
 import datetime  # noqa
 import logging
 import os
-from typing import List
+from typing import List, BinaryIO
 import uuid
 
 import dateparser
@@ -129,7 +129,8 @@ class Component(ComponentBase):
             logging.info('Uploading [{}]...'.format(destination_table_name))
 
             try:
-                upload_method(table, destination_table_name, block_size=params.get(KEY_BLOCK_SIZE))
+                with open(file=table.full_path, mode="rb") as file_stream:
+                    upload_method(file_stream, destination_table_name, block_size=params.get(KEY_BLOCK_SIZE))
             except Exception as e:
                 raise UserException(f'There is an issue with uploading [{table.name}]. {e}') from e
 
@@ -164,34 +165,33 @@ class Component(ComponentBase):
         ps = workspace_client.reset_password(workspace_id)
         return ps['connectionString'].split('SharedAccessSignature=')[1]
 
-    def standard_upload(self, table: TableDefinition, destination_table_name: str, **kwargs):
+    def standard_upload(self, file_stream: BinaryIO, destination_table_name: str, **kwargs):
         self.container_client.upload_blob(
             name=destination_table_name,
-            data=open(table.full_path, 'rb'),
+            data=file_stream,
             overwrite=True
         )
 
-    def stage_and_commit_upload(self, table: TableDefinition, destination_table_name: str,
+    def stage_and_commit_upload(self, file_stream: BinaryIO, destination_table_name: str,
                                 block_size: int = DEFAULT_BLOCK_SIZE):
         blob_client = self.container_client.get_blob_client(destination_table_name)
 
-        with open(file=table.full_path, mode="rb") as file_stream:
-            block_id_list = []
-            i = 0
-            while True:
-                buffer = file_stream.read(block_size)
-                if not buffer:
-                    break
+        block_id_list = []
+        i = 0
+        while True:
+            buffer = file_stream.read(block_size)
+            if not buffer:
+                break
 
-                block_id = uuid.uuid4().hex
-                block_id_list.append(BlobBlock(block_id=block_id))
+            block_id = uuid.uuid4().hex
+            block_id_list.append(BlobBlock(block_id=block_id))
 
-                i += 1
-                logging.info(f'Staging block {i}')
-                blob_client.stage_block(block_id=block_id, data=buffer, length=len(buffer))
+            i += 1
+            logging.info(f'Staging block {i}')
+            blob_client.stage_block(block_id=block_id, data=buffer, length=len(buffer))
 
-            logging.info(f'Commiting {i} blocks for [{destination_table_name}]')
-            blob_client.commit_block_list(block_id_list)
+        logging.info(f'Commiting {i} blocks for [{destination_table_name}]')
+        blob_client.commit_block_list(block_id_list)
 
 
 """
