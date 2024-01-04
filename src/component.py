@@ -172,12 +172,13 @@ class Component(ComponentBase):
             overwrite=True
         )
 
-    def stage_and_commit_upload(self, file_stream: BinaryIO, destination_table_name: str,
-                                block_size: int = DEFAULT_BLOCK_SIZE):
+    def stage_and_commit_upload(self, file_stream: BinaryIO, destination_table_name: str, block_size: int = None):
+        block_size = block_size or DEFAULT_BLOCK_SIZE
         blob_client = self.container_client.get_blob_client(destination_table_name)
 
         block_id_list = []
         i = 0
+
         while True:
             buffer = file_stream.read(block_size)
             if not buffer:
@@ -190,7 +191,7 @@ class Component(ComponentBase):
             logging.info(f'Staging block {i}')
             blob_client.stage_block(block_id=block_id, data=buffer, length=len(buffer))
 
-        logging.info(f'Commiting {i} blocks for [{destination_table_name}]')
+        logging.info(f'Committing {i} blocks for [{destination_table_name}]')
         blob_client.commit_block_list(block_id_list)
 
 
