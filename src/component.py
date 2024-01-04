@@ -38,8 +38,7 @@ MANDATORY_PARS = [
      KEY_ACCOUNT_KEY],
     KEY_CONTAINER_NAME,
     KEY_DESTINATION_PATH,
-    KEY_APPEND_DATE_TO_FILE,
-    KEY_STAGE_AND_COMMIT
+    KEY_APPEND_DATE_TO_FILE
 ]
 
 # Default Table Output Destination
@@ -104,8 +103,6 @@ class Component(ComponentBase):
             workspace_client = Workspaces(f'https://{os.environ.get("KBC_STACKID")}', workspace_token)
             account_key = self._refresh_abs_container_token(workspace_client, workspace_id)
 
-        self._get_max_block_size(in_tables)
-
         self.container_client = ContainerClient(
             account_url=account_url,
             container_name=container_name,
@@ -117,7 +114,7 @@ class Component(ComponentBase):
 
         self.validate_container_client(self.container_client)
 
-        upload_method = self.stage_and_commit_upload if params[KEY_STAGE_AND_COMMIT] else self.standard_upload
+        upload_method = self.stage_and_commit_upload if params.get(KEY_STAGE_AND_COMMIT) else self.standard_upload
 
         # Uploading files to Blob Storage
         for table in in_tables:
