@@ -87,7 +87,7 @@
       "type": "boolean",
       "title": "Upload via blocks staging and subsequent commit",
       "format": "checkbox",
-      "description": "Staging nad commiting ensures the whole file will be uploaded before visible in azure",
+      "description": "Staging and committing ensures the whole file will be uploaded before visible in azure",
       "propertyOrder": 70,
       "default": false
     },
