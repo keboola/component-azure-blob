@@ -120,7 +120,7 @@ class Component(ComponentBase):
 
         # Uploading tables and files to Blob Storage
         for definition in in_tables + in_files:
-            file_name, _, extension = definition.name.rpartition(".")[0]
+            file_name, _, extension = definition.name.rpartition(".")
             destination_name = f'{path_destination}{file_name}{append_value}.{extension}'
 
             try:
