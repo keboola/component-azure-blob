@@ -125,6 +125,7 @@ class Component(ComponentBase):
 
             try:
                 with open(file=definition.full_path, mode="rb") as file_stream:
+                    logging.info(f"Uploading `{definition.full_path}` to `{destination_name}`")
                     upload_method(file_stream, destination_name, block_size=params.get(KEY_BLOCK_SIZE))
             except Exception as e:
                 raise UserException(f'There is an issue with uploading [{definition.name}]. {e}') from e
