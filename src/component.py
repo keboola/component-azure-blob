@@ -95,7 +95,7 @@ class Component(ComponentBase):
         '''
         blob_domain = params.get(KEY_BLOB_DOMAIN, DEFAULT_BLOB_DOMAIN)
         account_url = f'{account_name}.{blob_domain}'
-        # Create the BlocklobService that is used to call the Blob service for the storage account
+        # Create the BlockBlobService that is used to call the Blob service for the storage account
         logger = logging.getLogger("empty_logger")
         logger.disabled = True
 
@@ -118,16 +118,16 @@ class Component(ComponentBase):
 
         upload_method = self.stage_and_commit_upload if params.get(KEY_STAGE_AND_COMMIT) else self.standard_upload
 
-        # Uploading files to Blob Storage
-        for file in in_tables + in_files:
-            file_name = file.name.rpartition(".")[0]
-            destination_name = f'{path_destination}{file_name}{append_value}.csv'
+        # Uploading tables and files to Blob Storage
+        for definition in in_tables + in_files:
+            file_name, _, extension = definition.name.rpartition(".")[0]
+            destination_name = f'{path_destination}{file_name}{append_value}.{extension}'
 
             try:
-                with open(file=file.full_path, mode="rb") as file_stream:
+                with open(file=definition.full_path, mode="rb") as file_stream:
                     upload_method(file_stream, destination_name, block_size=params.get(KEY_BLOCK_SIZE))
             except Exception as e:
-                raise UserException(f'There is an issue with uploading [{file.name}]. {e}') from e
+                raise UserException(f'There is an issue with uploading [{definition.name}]. {e}') from e
 
         logging.info("Blob Storage Writer finished")
 
