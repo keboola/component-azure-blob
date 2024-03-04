@@ -120,8 +120,11 @@ class Component(ComponentBase):
 
         # Uploading tables and files to Blob Storage
         for definition in in_tables + in_files:
-            file_name, _, extension = definition.name.rpartition(".")
-            destination_name = f'{path_destination}{file_name}{append_value}.{extension}'
+            if '.' in definition.name:
+                file_name, _, extension = definition.name.rpartition(".")
+                destination_name = f'{path_destination}{file_name}{append_value}.{extension}'
+            else:
+                destination_name = f'{path_destination}{definition.name}{append_value}'
 
             try:
                 with open(file=definition.full_path, mode="rb") as file_stream:
