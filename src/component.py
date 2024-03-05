@@ -57,6 +57,7 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__()
+        self.container_client = None
 
     def run(self):
         """
@@ -67,6 +68,7 @@ class Component(ComponentBase):
         params = self.configuration.parameters
 
         in_tables = self.get_input_tables_definitions()
+        in_files = self.get_input_files_definitions()
 
         # Get proper list of parameters
         account_name = params.get(KEY_ACCOUNT_NAME)
@@ -93,7 +95,7 @@ class Component(ComponentBase):
         '''
         blob_domain = params.get(KEY_BLOB_DOMAIN, DEFAULT_BLOB_DOMAIN)
         account_url = f'{account_name}.{blob_domain}'
-        # Create the BlocklobService that is used to call the Blob service for the storage account
+        # Create the BlockBlobService that is used to call the Blob service for the storage account
         logger = logging.getLogger("empty_logger")
         logger.disabled = True
 
@@ -116,20 +118,20 @@ class Component(ComponentBase):
 
         upload_method = self.stage_and_commit_upload if params.get(KEY_STAGE_AND_COMMIT) else self.standard_upload
 
-        # Uploading files to Blob Storage
-        for table in in_tables:
-            destination_table_name = '{}{}{}.csv'.format(
-                path_destination,  # folder path
-                table.name.split('.csv')[0],  # file name
-                append_value)  # custom date value
-
-            logging.info('Uploading [{}]...'.format(destination_table_name))
+        # Uploading tables and files to Blob Storage
+        for definition in in_tables + in_files:
+            if '.' in definition.name:
+                file_name, _, extension = definition.name.rpartition(".")
+                destination_name = f'{path_destination}{file_name}{append_value}.{extension}'
+            else:
+                destination_name = f'{path_destination}{definition.name}{append_value}'
 
             try:
-                with open(file=table.full_path, mode="rb") as file_stream:
-                    upload_method(file_stream, destination_table_name, block_size=params.get(KEY_BLOCK_SIZE))
+                with open(file=definition.full_path, mode="rb") as file_stream:
+                    logging.info(f"Uploading `{definition.full_path}` to `{destination_name}`")
+                    upload_method(file_stream, destination_name, block_size=params.get(KEY_BLOCK_SIZE))
             except Exception as e:
-                raise UserException(f'There is an issue with uploading [{table.name}]. {e}') from e
+                raise UserException(f'There is an issue with uploading [{definition.name}]. {e}') from e
 
         logging.info("Blob Storage Writer finished")
 
@@ -162,16 +164,12 @@ class Component(ComponentBase):
         ps = workspace_client.reset_password(workspace_id)
         return ps['connectionString'].split('SharedAccessSignature=')[1]
 
-    def standard_upload(self, file_stream: BinaryIO, destination_table_name: str, **kwargs):
-        self.container_client.upload_blob(
-            name=destination_table_name,
-            data=file_stream,
-            overwrite=True
-        )
+    def standard_upload(self, file_stream: BinaryIO, destination_name: str, **kwargs):
+        self.container_client.upload_blob(name=destination_name, data=file_stream, overwrite=True)
 
-    def stage_and_commit_upload(self, file_stream: BinaryIO, destination_table_name: str, block_size: int = None):
+    def stage_and_commit_upload(self, file_stream: BinaryIO, destination_name: str, block_size: int = None):
         block_size = block_size or DEFAULT_BLOCK_SIZE
-        blob_client = self.container_client.get_blob_client(destination_table_name)
+        blob_client = self.container_client.get_blob_client(destination_name)
 
         block_id_list = []
         i = 0
@@ -188,7 +186,7 @@ class Component(ComponentBase):
             logging.info(f'Staging block {i}')
             blob_client.stage_block(block_id=block_id, data=buffer, length=len(buffer))
 
-        logging.info(f'Committing {i} blocks for [{destination_table_name}]')
+        logging.info(f'Committing {i} blocks for [{destination_name}]')
         blob_client.commit_block_list(block_id_list)
 
 

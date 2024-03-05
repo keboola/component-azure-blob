@@ -3,5 +3,5 @@ mock
 freezegun
 dateparser==1.1.1
 regex==2019.11.1
-azure-storage-blob==12.3.1
+azure-storage-blob==12.19.0
 git+https://github.com/davidesner/sapi-python-client.git#egg=kbcstorage
