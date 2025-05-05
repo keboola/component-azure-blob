@@ -156,8 +156,8 @@ class Component(ComponentBase):
         # & Validate if the entered account has the right credentials and privileges
         try:
             blob_obj.get_account_information()
-        except Exception:
-            raise UserException('Authorization Error. Please validate your credentials.')
+        except Exception as e:
+            raise UserException(f'Authorization Error. Please validate your credentials. Error: {e}') from e
 
     @staticmethod
     def _refresh_abs_container_token(workspace_client: Workspaces, workspace_id: str) -> str:
