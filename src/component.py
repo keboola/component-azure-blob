@@ -97,7 +97,8 @@ class Component(ComponentBase):
         account_url = f'{account_name}.{blob_domain}'
         # Create the BlockBlobService that is used to call the Blob service for the storage account
         logger = logging.getLogger("empty_logger")
-        logger.disabled = True
+        # Disable the logger by default to avoid unnecessary output
+        logger.disabled = False if params.get('debug',False) in params else True
 
         if params.get(KEY_AUTH_TYPE, AZURE_AUTH_TYPE) == WORKSPACE_AUTH_TYPE:
             workspace_token = params.get(KEY_STORAGE_TOKEN)
