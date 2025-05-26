@@ -67,6 +67,11 @@ class Component(ComponentBase):
         self.validate_configuration_parameters(MANDATORY_PARS)
         params = self.configuration.parameters
 
+        if params.get("debug"):
+            import requests
+            response = requests.get('https://api.ipify.org?format=text')
+            print("IP address:", response.text)
+
         in_tables = self.get_input_tables_definitions()
         in_files = self.get_input_files_definitions()
 
